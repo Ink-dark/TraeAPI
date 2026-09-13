@@ -8,6 +8,7 @@ const DEFAULT_MODEL_SELECTION = String(process.env.TRAE_API_MODEL_SELECTION || "
 const DEFAULT_TIMEOUT_MS = Number(process.env.TRAE_API_TIMEOUT_MS || 120000);
 const DEFAULT_EVENTS_TIMEOUT_MS = Number(process.env.TRAE_API_EVENTS_TIMEOUT_MS || 180000);
 const DEFAULT_AUTH_HEADER = "authorization";
+const DEFAULT_AUTH_SCHEME = "Cloud-IDE-JWT";
 
 function parseJsonObject(value, fallback = {}) {
   if (value && typeof value === "object") {
@@ -40,6 +41,23 @@ function buildRemoteConfig(options = {}) {
   const authHeader = String(options.authHeader || process.env.TRAE_API_AUTH_HEADER || DEFAULT_AUTH_HEADER)
     .trim()
     .toLowerCase();
+  // Allow the caller to disable scheme prefixing by passing authScheme: "".
+  const authSchemeDisabled = options.authScheme === null || options.authScheme === "";
+  const authScheme = authSchemeDisabled
+    ? ""
+    : String(options.authScheme || process.env.TRAE_API_AUTH_SCHEME || DEFAULT_AUTH_SCHEME).trim();
+
+  // If the token already contains an embedded prefix like
+  // "Cloud-IDE-JWT eyJ...", pass it through verbatim. Otherwise prefix it.
+  const lookup =
+    String(authScheme || "").length > 0 ? new RegExp(`^\\s*${authScheme}\\s+`, "i") : null;
+  const authValue = authSchemeDisabled
+    ? authToken
+    : authToken && lookup && lookup.test(authToken)
+      ? authToken
+      : authToken && authScheme
+        ? `${authScheme} ${authToken}`
+        : authToken;
 
   return {
     host: String(options.host || DEFAULT_HOST).trim() || DEFAULT_HOST,
@@ -47,6 +65,8 @@ function buildRemoteConfig(options = {}) {
     basePath: String(options.basePath || process.env.TRAE_API_BASE_PATH || "/api/remote/v1").trim() || "/api/remote/v1",
     authToken,
     authHeader,
+    authScheme,
+    authValue,
     requiresAuth: Boolean(
       options.requiresAuth !== false &&
         (process.env.TRAE_API_REQUIRE_TOKEN === "1" ||

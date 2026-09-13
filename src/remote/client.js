@@ -11,15 +11,16 @@ function createHeaders(config, extra = {}) {
     referer: `https://${config.host}/`,
     "user-agent": config.userAgent,
     "x-preferenced-language": config.language,
-    "x-trae-client-type": config.clientType,
-    "x-trae-user-timezone": config.timezone,
+    "x-true-client-type": config.clientType,
+    "x-true-user-timezone": config.timezone,
     "x-user-region": config.userRegion,
     ...config.extraHeaders
   };
   headers.origin = config.origin || headers.origin;
   headers.referer = config.referer || headers.referer;
   if (config.authToken) {
-    headers[config.authHeader] = config.authToken;
+    headers[config.authHeader] =
+      typeof config.authValue === "string" && config.authValue ? config.authValue : config.authToken;
   }
   return {
     ...headers,

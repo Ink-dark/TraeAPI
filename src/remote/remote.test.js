@@ -20,6 +20,8 @@ test("buildRemoteConfig parses env and defaults", () => {
   assert.equal(config.host, "core-normal.trae.ai");
   assert.equal(config.authToken, "jwt-token");
   assert.equal(config.authHeader, "authorization");
+  assert.equal(config.authScheme, "Cloud-IDE-JWT");
+  assert.equal(config.authValue, "Cloud-IDE-JWT jwt-token");
   assert.equal(config.basePath, "/api/remote/v1");
   assert.equal(config.mode, "work");
   assert.equal(config.requiresAuth, true);
@@ -78,6 +80,20 @@ test("summarizeStreamEvents extracts non-finish thought as reasoning", () => {
   ];
   const summary = summarizeStreamEvents(events);
   assert.equal(summary.reasoning, "reasoning text");
+});
+
+test("buildRemoteConfig lets auth scheme be disabled or pass through an embedded prefix", () => {
+  const disabled = buildRemoteConfig({ authToken: "jwt", authScheme: "" });
+  assert.equal(disabled.authValue, "jwt");
+
+  const embedded = buildRemoteConfig({
+    authToken: "Cloud-IDE-JWT eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxx",
+    authScheme: "Cloud-IDE-JWT"
+  });
+  assert.equal(embedded.authValue, "Cloud-IDE-JWT eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxx");
+
+  const bearer = buildRemoteConfig({ authToken: "t", authScheme: "Bearer" });
+  assert.equal(bearer.authValue, "Bearer t");
 });
 
 test("normalizeRemoteError wraps unknown errors and preserves codes", () => {
