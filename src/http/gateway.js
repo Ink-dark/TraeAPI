@@ -3,6 +3,7 @@ const { randomUUID } = require("node:crypto");
 const { createTraeAutomationDriver } = require("../cdp/dom-driver");
 const { normalizeAutomationError } = require("../cdp/errors");
 const { getChatPageHtml } = require("./chat-ui");
+const { handleChatCompletions, handleListModels, writeOpenAiError } = require("../openai");
 
 const MAX_BODY_BYTES = Number(process.env.TRAE_HTTP_MAX_BODY_BYTES || 1024 * 1024);
 const DEFAULT_AUTH_HEADER = "authorization";
@@ -195,6 +196,10 @@ function createGatewayServer(options = {}) {
   };
   const enableDebugEndpoints =
     options.enableDebugEndpoints === true || String(process.env.TRAE_ENABLE_DEBUG_ENDPOINTS || "0").trim() === "1";
+  const enableOpenAiEndpoints =
+    options.enableOpenAiEndpoints === true ||
+    String(process.env.TRAE_ENABLE_OPENAI_ENDPOINTS || "0").trim() === "1" ||
+    String(process.env.TRAE_BACKEND || "").trim().toLowerCase() === "remote";
   const rateLimitStore = new Map();
   const bootedAt = Date.now();
   const requestStats = {
@@ -688,6 +693,30 @@ function createGatewayServer(options = {}) {
         statusCode = 200;
         outcome = "success";
         return writeApiSuccess(res, 200, diagnostics, meta);
+      }
+
+      if (enableOpenAiEndpoints && pathname === "/v1/models" && req.method === "GET") {
+        statusCode = 200;
+        outcome = "success";
+        return await handleListModels(req, res, {
+          driver: automationDriver,
+          apiMeta: meta
+        });
+      }
+
+      if (enableOpenAiEndpoints && pathname === "/v1/chat/completions" && req.method === "POST") {
+        await readJsonBody(req);
+        statusCode = 200;
+        outcome = "success";
+        try {
+          return await handleChatCompletions(req, res, {
+            driver: automationDriver,
+            apiMeta: meta
+          });
+        } catch (error) {
+          writeOpenAiError(res, error, meta);
+          return;
+        }
       }
 
       if (pathname === "/v1/sessions" && req.method === "POST") {
