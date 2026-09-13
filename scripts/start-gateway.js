@@ -1,5 +1,6 @@
 const { createTraeAutomationDriver } = require("../src/cdp/dom-driver");
 const { createMockAutomationDriver } = require("../src/cdp/mock-driver");
+const { createTraeRemoteDriver } = require("../src/remote/driver");
 const { startGatewayServer } = require("../src/server");
 
 function isSafeAttachModeEnabled() {
@@ -10,7 +11,37 @@ function isMockDriverEnabled() {
   return process.env.TRAE_ENABLE_MOCK_BRIDGE !== "0";
 }
 
+function isRemoteDriverEnabled() {
+  return process.env.TRAE_BACKEND === "remote" || process.env.TRAE_REMOTE_DRIVER === "1";
+}
+
 async function main() {
+  if (isRemoteDriverEnabled()) {
+    const remoteDriver = createTraeRemoteDriver();
+    const readiness = await remoteDriver.getReadiness();
+    if (!readiness.ready && !isSafeAttachModeEnabled()) {
+      throw Object.assign(new Error(readiness.error?.message || "Remote Trae API is not ready"), {
+        code: readiness.error?.code || "REMOTE_NOT_READY",
+        details: readiness.error?.details || {}
+      });
+    }
+    console.warn(
+      JSON.stringify(
+        {
+          code: "REMOTE_DRIVER_ACTIVE",
+          message: "Remote HTTP driver is active (TRAE_API physical protocol, no DOM window)",
+          note: "Requires TRAE_API_TOKEN set to a valid TraeWork session JWT"
+        },
+        null,
+        2
+      )
+    );
+    startGatewayServer({
+      automationDriver: remoteDriver
+    });
+    return;
+  }
+
   let automationDriver = createTraeAutomationDriver();
   let readiness = await automationDriver.getReadiness();
 
